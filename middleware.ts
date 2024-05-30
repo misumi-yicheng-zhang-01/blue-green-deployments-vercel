@@ -49,10 +49,10 @@ export async function middleware(req: NextRequest) {
   const canaryConfig = await get<CanaryConfig>(
     "canary-configuration"
   );
-  // if (!CanaryConfig) {
-  //   console.warn("No canary configuration found");
-  //   return NextResponse.next();
-  // }
+  if (!CanaryConfig) {
+    console.warn("No canary configuration found");
+    return NextResponse.next();
+  }
   const servingDeploymentDomain = process.env.VERCEL_URL;
   const selectedDeploymentDomain =
     selectCanaryDomain(canaryConfig);
