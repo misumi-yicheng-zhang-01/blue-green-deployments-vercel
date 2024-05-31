@@ -1,0 +1,21 @@
+name: Create Canary Deployment
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_PROD_URL: ${{ secrets.VERCEL_PRODUCTION_DOMAIN }}
+
+on:
+  deployment_status:
+
+jobs:
+  create-canary-deployment:
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Edge Config
+        run: |
+          curl -X 'PATCH' 'https://api.vercel.com/v1/edge-config/${{ secrets.VERCEL_EDGE_CONFIG_ID }}/items?teamId=${{ secrets.VERCEL_ORG_ID }}' \
+          -H 'Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}' \
+          -H 'Content-Type: application/json' \
+          -d $'{ "items": [ { "operation": "upsert", "key": "canary-configuration", "value": { "deploymentDomainExisting": "${{ env.VERCEL_PROD_URL }}", "deploymentDomainCanary": "${{ github.event.deployment_status.environment_url }}", "trafficCanaryPercent": 10 } } ] }'
