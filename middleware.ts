@@ -49,7 +49,7 @@ export async function middleware(req: NextRequest) {
   const canaryConfig = await get<CanaryConfig>(
     "canary-configuration"
   );
-  if (!CanaryConfig) {
+  if (!canaryConfig) {
     console.warn("No canary configuration found");
     return NextResponse.next();
   }
