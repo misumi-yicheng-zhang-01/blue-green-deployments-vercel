@@ -15,18 +15,26 @@ export const config = {
 };
 
 // Configuration stored in Edge Config.
-interface CanaryConfig {
-  deploymentDomainExisting: string;
-  deploymentDomainCanary: string;
-  trafficCanaryPercent: number;
+interface BlueGreenConfig {
+  deploymentDomainBlue: string;
+  deploymentDomainGreen: string;
+  trafficGreenPercent: number;
 }
 
 export async function middleware(req: NextRequest) {
-  // We don't want to run canary during development.
+  // We don't want to run blue-green during development.
   if (process.env.NODE_ENV !== "production") {
     return NextResponse.next();
   }
-  // We only want to run canary for GET requests that are for HTML documents.
+  // Skip if the middleware has already run.
+  if (req.headers.get("x-deployment-override")) {
+    return getDeploymentWithCookieBasedOnEnvVar();
+  }
+  // We skip blue-green when accesing from deployment urls
+  if (req.nextUrl.hostname === process.env.VERCEL_URL) {
+    return NextResponse.next();
+  }
+  // We only want to run blue-green for GET requests that are for HTML documents.
   if (req.method !== "GET") {
     return NextResponse.next();
   }
@@ -37,29 +45,25 @@ export async function middleware(req: NextRequest) {
   if (/vercel/i.test(req.headers.get("user-agent") || "")) {
     return NextResponse.next();
   }
-  // Skip if the middleware has already run.
-  if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
-  }
   if (!process.env.EDGE_CONFIG) {
-    console.warn("EDGE_CONFIG env variable not set. Skipping canary.");
+    console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
     return NextResponse.next();
   }
-  // Get the canary configuration from Edge Config.
-  const canaryConfig = await get<CanaryConfig>(
-    "canary-configuration"
+  // Get the blue-green configuration from Edge Config.
+  const blueGreenConfig = await get<BlueGreenConfig>(
+    "blue-green-configuration"
   );
-  if (!canaryConfig) {
-    console.warn("No canary configuration found");
+  if (!blueGreenConfig) {
+    console.warn("No blue-green configuration found");
     return NextResponse.next();
   }
   const servingDeploymentDomain = process.env.VERCEL_URL;
   const selectedDeploymentDomain =
-    selectCanaryDomain(canaryConfig);
+    selectBlueGreenDeploymentDomain(blueGreenConfig);
   console.info(
     "Selected deployment domain",
     selectedDeploymentDomain,
-    canaryConfig
+    blueGreenConfig
   );
   if (!selectedDeploymentDomain) {
     return NextResponse.next();
@@ -83,16 +87,16 @@ export async function middleware(req: NextRequest) {
   });
 }
 
-// Selects the deployment domain based on the canary configuration.
-function selectCanaryDomain(canaryConfig: CanaryConfig) {
+// Selects the deployment domain based on the blue-green configuration.
+function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig): any {
   const random = Math.random() * 100;
 
   const selected =
-    random < canaryConfig.trafficCanaryPercent
-      ? canaryConfig.deploymentDomainCanary
-      : canaryConfig.deploymentDomainExisting || process.env.VERCEL_URL;
+    random < blueGreenConfig.trafficGreenPercent
+      ? blueGreenConfig.deploymentDomainGreen
+      : blueGreenConfig.deploymentDomainBlue || process.env.VERCEL_URL;
   if (!selected) {
-    console.error("Canary configuration error", canaryConfig);
+    console.error("Blue green configuration error", blueGreenConfig);
   }
   if (/^http/.test(selected || "")) {
     return new URL(selected || "").hostname;
