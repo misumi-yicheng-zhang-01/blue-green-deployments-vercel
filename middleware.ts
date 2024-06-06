@@ -20,6 +20,9 @@ interface CanaryConfig {
   deploymentDomainCanary: string;
   trafficCanaryPercent: number;
 }
+interface IPWhiteConfig {
+  ipwhitelist: string;
+}
 
 export async function middleware(req: NextRequest) {
   // We don't want to run canary during development.
@@ -53,9 +56,24 @@ export async function middleware(req: NextRequest) {
     console.warn("No canary configuration found");
     return NextResponse.next();
   }
+  // Get the ipwhitelist configuration from Edge Config.
+  const ipWhieListConfig = await get<IPWhiteConfig>(
+    "ipwhitelist-configuration"
+  );
+  if (!ipWhieListConfig) {
+    console.warn("No ipwhitelist configuration found");
+    return NextResponse.next();
+  }
+  // Get the x-canary from headers.
+  const xCanary = req.headers.get("x-canary")
+  // if (!xCanary) {
+  //   console.warn("No x-canary header found");
+  //   return NextResponse.next();
+  // }
+
   const servingDeploymentDomain = process.env.VERCEL_URL;
   const selectedDeploymentDomain =
-    selectCanaryDomain(canaryConfig);
+    selectCanaryDomain(canaryConfig, ipWhieListConfig, xCanary);
   console.info(
     "Selected deployment domain",
     selectedDeploymentDomain,
@@ -84,7 +102,7 @@ export async function middleware(req: NextRequest) {
 }
 
 // Selects the deployment domain based on the canary configuration.
-function selectCanaryDomain(canaryConfig: CanaryConfig) {
+function selectCanaryDomain(canaryConfig: CanaryConfig, ipWhieListConfig: IPWhiteConfig, xCanary: any | undefined) {
   const random = Math.random() * 100;
 
   const selected =
@@ -115,3 +133,58 @@ function getDeploymentWithCookieBasedOnEnvVar() {
   });
   return response;
 }
+
+// ホワイトリストに登録されたIPリストを取得します。
+// const ipWhiteList = new Set(
+// 	process.env.IP_WHITE_LIST?.split(',').map((item: string) => {
+// 		return item.trim();
+// 	})
+// );
+
+// export function middleware(request: NextRequest) {
+// 	if (process.env.NODE_ENV === 'production') {
+// 		if (!ipWhiteList.has(request.ip as string)) {
+// 			// eslint-disable-next-line no-console
+// 			console.info(
+// 				`ホワイトリストに追加されていないIPアドレスからアクセスされたため、アクセスを拒否しました。[request.ip = ${request.ip}, request.nextUrl.host = ${request.nextUrl.host}]`
+// 			);
+// 			return new NextResponse(null, { status: 401 });
+// 		} else {
+// 			// eslint-disable-next-line no-console
+// 			console.info(
+// 				`ホワイトリストに追加されているIPアドレスからアクセスされました。[request.ip = ${request.ip}, request.nextUrl.host = ${request.nextUrl.host}]`
+// 			);
+// 			const basicAuth = request.headers.get('authorization');
+
+// 			if (basicAuth) {
+// 				const authValue = basicAuth.split(' ')[1];
+// 				const [user, pwd] = Buffer.from(authValue, 'base64')
+// 					.toString()
+// 					.split(':');
+
+// 				if (
+// 					user === process.env.BASIC_AUTH_USER &&
+// 					pwd === process.env.BASIC_AUTH_PASSWORD
+// 				) {
+// 					return NextResponse.next();
+// 				}
+
+// 				return NextResponse.json(
+// 					{ error: 'Invalid credentials' },
+// 					{
+// 						headers: { 'WWW-Authenticate': 'Basic realm="Secure Area"' },
+// 						status: 401,
+// 					}
+// 				);
+// 			} else {
+// 				return NextResponse.json(
+// 					{ error: 'Please enter credentials' },
+// 					{
+// 						headers: { 'WWW-Authenticate': 'Basic realm="Secure Area"' },
+// 						status: 401,
+// 					}
+// 				);
+// 			}
+// 		}
+// 	}
+// }
