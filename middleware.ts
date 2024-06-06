@@ -15,10 +15,10 @@ export const config = {
 };
 
 // Configuration stored in Edge Config.
-interface BlueGreenConfig {
-  deploymentDomainBlue: string;
-  deploymentDomainGreen: string;
-  trafficGreenPercent: number;
+interface CanaryConfig {
+  deploymentDomainExisting: string;
+  deploymentDomainCanary: string;
+  trafficCanaryPercent: number;
 }
 
 export async function middleware(req: NextRequest) {
@@ -49,21 +49,26 @@ export async function middleware(req: NextRequest) {
     console.warn("EDGE_CONFIG env variable not set. Skipping blue-green.");
     return NextResponse.next();
   }
-  // Get the blue-green configuration from Edge Config.
-  const blueGreenConfig = await get<BlueGreenConfig>(
-    "blue-green-configuration"
+  // Get the canary configuration from Edge Config.
+  const canaryConfig = await get<CanaryConfig>(
+    "canary-configuration"
   );
-  if (!blueGreenConfig) {
-    console.warn("No blue-green configuration found");
+  if (!canaryConfig) {
+    console.warn("No canary configuration found");
+    return NextResponse.next();
+  }
+  const xCanary = req.headers.get("x-canary")
+  if (!xCanary) {
+    console.warn("No canary headers found");
     return NextResponse.next();
   }
   const servingDeploymentDomain = process.env.VERCEL_URL;
   const selectedDeploymentDomain =
-    selectBlueGreenDeploymentDomain(blueGreenConfig);
+    selectCanaryDomain(canaryConfig, xCanary);
   console.info(
     "Selected deployment domain",
     selectedDeploymentDomain,
-    blueGreenConfig
+    canaryConfig
   );
   if (!selectedDeploymentDomain) {
     return NextResponse.next();
@@ -87,16 +92,16 @@ export async function middleware(req: NextRequest) {
   });
 }
 
-// Selects the deployment domain based on the blue-green configuration.
-function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig): any {
+// Selects the deployment domain based on the canary configuration.
+function selectCanaryDomain(canaryConfig: CanaryConfig, xCanary) {
   const random = Math.random() * 100;
 
   const selected =
-    random < blueGreenConfig.trafficGreenPercent
-      ? blueGreenConfig.deploymentDomainGreen
-      : blueGreenConfig.deploymentDomainBlue || process.env.VERCEL_URL;
+    random < canaryConfig.trafficCanaryPercent || xCanary
+      ? canaryConfig.deploymentDomainCanary
+      : canaryConfig.deploymentDomainExisting || process.env.VERCEL_URL;
   if (!selected) {
-    console.error("Blue green configuration error", blueGreenConfig);
+    console.error("Canary configuration error", canaryConfig);
   }
   if (/^http/.test(selected || "")) {
     return new URL(selected || "").hostname;
