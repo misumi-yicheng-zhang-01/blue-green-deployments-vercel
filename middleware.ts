@@ -93,7 +93,7 @@ export async function middleware(req: NextRequest) {
 }
 
 // Selects the deployment domain based on the canary configuration.
-function selectCanaryDomain(canaryConfig: CanaryConfig, xCanary) {
+function selectCanaryDomain(canaryConfig: CanaryConfig, xCanary: any | undefined) {
   const random = Math.random() * 100;
 
   const selected =
