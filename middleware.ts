@@ -106,7 +106,7 @@ function selectCanaryDomain(canaryConfig: CanaryConfig, ipWhieListConfig: IPWhit
   const random = Math.random() * 100;
 
   const selected =
-    random < canaryConfig.trafficCanaryPercent
+    random < canaryConfig.trafficCanaryPercent || xCanary
       ? canaryConfig.deploymentDomainCanary
       : canaryConfig.deploymentDomainExisting || process.env.VERCEL_URL;
   if (!selected) {
